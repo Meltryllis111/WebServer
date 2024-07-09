@@ -2,6 +2,7 @@
 #define HTTPCONNECTION_H
 
 #include <sys/epoll.h>
+#include "inih/INIReader.h"
 
 class http_conn
 {

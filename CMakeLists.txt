@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(your_project)
+project(WebServer)
 
 set(CMAKE_CXX_STANDARD 11)
 

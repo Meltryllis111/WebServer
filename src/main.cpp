@@ -11,12 +11,19 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <csignal>
-#include "include/locker.h"
-#include "include/threadpool.h"
-#include "include/http_conn.h"
+#include "locker.h"
+#include "threadpool.h"
+#include "http_conn.h"
+#include "inih/INIReader.h"
 
 #define MAX_CLIENT_NUM 10000   // 最大的客户端个数
 #define MAX_EVENT_NUMBER 10000 // 最大的事件数
+
+enum EpollMode
+{
+    LT,
+    ET
+};
 
 // 添加信号捕捉
 void addSig(int sig, void (*hander)(int))
@@ -27,12 +34,40 @@ void addSig(int sig, void (*hander)(int))
     sigfillset(&sa.sa_mask);
     sigaction(sig, &sa, NULL);
 }
-//添加文件描述符到epoll
-extern void addfd(int epollfd, int fd, bool one_shot);
-//从epoll删除文件描述符
+// 读取配置文件，获取epoll模式
+EpollMode getEpollMode(const std::string &filename)
+{
+    INIReader reader(filename);
+
+    if (reader.ParseError() != 0)
+    {
+        throw std::runtime_error("Unable to read configuration file.");
+    }
+
+    std::string mode = reader.Get("epoll", "mode", "LT");
+    if (mode == "ET")
+    {
+        return EpollMode::ET;
+    }
+    else if (mode == "LT")
+    {
+        return EpollMode::LT;
+    }
+    else
+    {
+        throw std::runtime_error("Invalid epoll mode in configuration file.");
+    }
+}
+// 添加文件描述符到epoll
+extern void addfd(int epollfd, int fd, bool one_shot, EpollMode mode);
+// 从epoll删除文件描述符
 extern void removefd(int epollfd, int fd);
+// 修改文件描述符在epoll中的事件
+extern void modfd(int epollfd, int fd, int ev);
+
 int main(int argc, char *argv[])
 {
+    EpollMode mode = getEpollMode("../config.ini");
     if (argc <= 1)
     {
         printf("usage: %s port_number\n", basename(argv[0]));
@@ -93,7 +128,7 @@ int main(int argc, char *argv[])
 
     // 创建epoll对象，事件数组，添加事件。实现IO多路复用
     epoll_event events[MAX_EVENT_NUMBER];
-    int epollfd = epoll_create(5);//传入的参数没有意义
+    int epollfd = epoll_create(5); // 传入的参数没有意义
 
     return 0;
 }
