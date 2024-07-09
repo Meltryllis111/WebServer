@@ -6,6 +6,7 @@
 #include <semaphore.h>
 // 线程同步机制封装类
 // 你好呀
+
 // 互斥锁类
 class locker
 {
