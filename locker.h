@@ -94,6 +94,7 @@ class sem
 {
 private:
     sem_t p_sem;
+    
 public:
     sem();
     sem(int num);
