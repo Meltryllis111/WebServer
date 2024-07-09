@@ -11,19 +11,15 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <csignal>
-#include "locker.h"
 #include "threadpool.h"
+#include "locker.h"
 #include "http_conn.h"
 #include "inih/INIReader.h"
 
 #define MAX_CLIENT_NUM 10000   // 最大的客户端个数
 #define MAX_EVENT_NUMBER 10000 // 最大的事件数
 
-enum EpollMode
-{
-    LT,
-    ET
-};
+
 
 // 添加信号捕捉
 void addSig(int sig, void (*hander)(int))
@@ -130,5 +126,68 @@ int main(int argc, char *argv[])
     epoll_event events[MAX_EVENT_NUMBER];
     int epollfd = epoll_create(5); // 传入的参数没有意义
 
+    // 将文件描述符添加到epoll内核事件表中
+    addfd(epollfd, listenfd, false, mode);
+    http_conn::p_epollfd = epollfd;
+    while (true)
+    {
+        int num = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1); // 阻塞等待事件发生
+        if ((num < 0) && (errno != EINTR))
+        {
+            std::cerr << "epoll failure" << std::endl;
+            break;
+        }
+
+        for (int i = 0; i < num; i++)
+        {
+            int sockfd = events[i].data.fd;
+            if (sockfd == listenfd) // 有客户端连接
+            {
+                struct sockaddr_in client_address;
+                socklen_t client_addrlength = sizeof(client_address);
+                int connfd = accept(listenfd, (struct sockaddr *)&client_address, &client_addrlength);
+                if (connfd < 0)
+                {
+                    std::cerr << "accept error" << std::endl;
+                    continue;
+                }
+
+                if (http_conn::p_user_count >= MAX_CLIENT_NUM) // 连接数满了
+                {
+                    close(connfd);
+                    continue;
+                }
+                // 初始化客户端数据
+                users[connfd].init(connfd, client_address, mode);
+            }
+            else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
+            {
+                // 对方异常断开连接，关闭连接
+                users[sockfd].close_conn();
+            }
+            else if (events[i].events & EPOLLIN)
+            {
+                if (users[sockfd].read()) // 读完所有数据
+                {
+                    pool->appendTask(users + sockfd);
+                }
+                else
+                {
+                    users[sockfd].close_conn();
+                }
+            }
+            else if (events[i].events & EPOLLOUT)
+            {
+                if (!users[sockfd].write()) // 写完所有数据
+                {
+                    users[sockfd].close_conn();
+                }
+            }
+        }
+    }
+    close(epollfd);
+    close(listenfd);
+    delete[] users;
+    delete pool;
     return 0;
 }

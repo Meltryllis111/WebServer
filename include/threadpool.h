@@ -45,7 +45,7 @@ threadpool<T>::threadpool(int thread_number, int max_requests)
     // 创建指定数量的线程，并且设置为线程脱离
     for (int i = 0; i < thread_number; i++)
     {
-        printf("create the %dth thread", i);
+        std::cout << "create the " << i << "th thread" << std::endl;
 
         if (pthread_create(p_threads + i, nullptr, worker, this) != 0)
         {

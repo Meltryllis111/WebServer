@@ -1,0 +1,27 @@
+[
+{
+  "directory": "/workspaces/WebServer/build",
+  "command": "/usr/bin/c++   -I/workspaces/WebServer/include  -g   -std=gnu++11 -o CMakeFiles/WebServer.dir/src/http_conn.cpp.o -c /workspaces/WebServer/src/http_conn.cpp",
+  "file": "/workspaces/WebServer/src/http_conn.cpp"
+},
+{
+  "directory": "/workspaces/WebServer/build",
+  "command": "/usr/bin/c++   -I/workspaces/WebServer/include  -g   -std=gnu++11 -o CMakeFiles/WebServer.dir/src/locker.cpp.o -c /workspaces/WebServer/src/locker.cpp",
+  "file": "/workspaces/WebServer/src/locker.cpp"
+},
+{
+  "directory": "/workspaces/WebServer/build",
+  "command": "/usr/bin/c++   -I/workspaces/WebServer/include  -g   -std=gnu++11 -o CMakeFiles/WebServer.dir/src/main.cpp.o -c /workspaces/WebServer/src/main.cpp",
+  "file": "/workspaces/WebServer/src/main.cpp"
+},
+{
+  "directory": "/workspaces/WebServer/build",
+  "command": "/usr/bin/cc  -I/workspaces/WebServer/include  -g   -o CMakeFiles/WebServer.dir/lib/inih/ini.c.o   -c /workspaces/WebServer/lib/inih/ini.c",
+  "file": "/workspaces/WebServer/lib/inih/ini.c"
+},
+{
+  "directory": "/workspaces/WebServer/build",
+  "command": "/usr/bin/c++   -I/workspaces/WebServer/include  -g   -std=gnu++11 -o CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.o -c /workspaces/WebServer/lib/inih/INIReader.cpp",
+  "file": "/workspaces/WebServer/lib/inih/INIReader.cpp"
+}
+]
