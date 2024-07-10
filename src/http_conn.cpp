@@ -9,7 +9,9 @@ http_conn::http_conn(/* args */)
 http_conn::~http_conn()
 {
 }
-void http_conn::init()
+
+// 初始化连接的参数
+void http_conn::init_args()
 {
     p_check_state = CHECK_STATE_REQUESTLINE; // 初始状态为检查请求行
     p_linger = false;                        // 默认不保持链接  Connection : keep-alive保持连接
@@ -22,8 +24,12 @@ void http_conn::init()
     p_start_line = 0;
     p_checked_idx = 0;
     p_read_idx = 0;
+    p_write_idx = 0;
     bzero(p_read_buf, READ_BUFFER_SIZE);
+    bzero(p_write_buf, READ_BUFFER_SIZE);
+    bzero(p_real_file, FILENAME_LEN);
 }
+
 // 设置文件描述符为非阻塞
 void setnonblocking(int fd)
 {
@@ -75,7 +81,9 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, EpollMode mode)
     setsockopt(p_sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     addfd(p_epollfd, p_sockfd, true, mode);
     p_user_count++; // 统计用户数量
-    init();
+    p_file_address = nullptr;
+    memset(p_write_buf, '\0', WRITE_BUFFER_SIZE); // 清空缓冲区
+    init_args();
 }
 
 // 关闭连接
@@ -127,42 +135,51 @@ bool http_conn::read()
 }
 
 // 写数据
-bool http_conn::write()  
-{  
-    int temp = 0;  
-    int bytes_have_sent = 0;    // 已经发送的字节  
-    int bytes_to_send = p_write_idx; // 将要发送的字节数  
-      
-    if (bytes_to_send == 0) {  
-        modfd(p_epollfd, p_sockfd, EPOLLIN);  
-        init();  
-        return true;  
-    }  
-  
-    while (1) {  
-        temp = writev(p_sockfd, p_iv, p_iv_count);  
-        if (temp <= -1) {  
-            if (errno == EAGAIN) {  
-                modfd(p_epollfd, p_sockfd, EPOLLOUT);  
-                return true;  
-            }  
-            unmap();  
-            return false;  
-        }  
-        bytes_to_send -= temp;  
-        bytes_have_sent += temp;  
-        if (bytes_to_send == 0) {  
-            unmap();  
-            if (p_linger) {  
-                init();  
-                modfd(p_epollfd, p_sockfd, EPOLLIN);  
-                return true;  
-            } else {  
-                modfd(p_epollfd, p_sockfd, EPOLLIN);  
-                return false;  
-            }  
-        }  
-    }  
+bool http_conn::write()
+{
+    int temp = 0;
+    int bytes_have_sent = 0;         // 已经发送的字节
+    int bytes_to_send = p_write_idx; // 将要发送的字节数
+
+    if (bytes_to_send == 0)
+    {
+        modfd(p_epollfd, p_sockfd, EPOLLIN);
+        init_args(); // 初始化连接状态，清空缓冲区等
+        return true;
+    }
+
+    while (1)
+    {
+        temp = writev(p_sockfd, p_iv, p_iv_count);
+        if (temp <= -1)
+        {
+            if (errno == EAGAIN)
+            {
+                modfd(p_epollfd, p_sockfd, EPOLLOUT);
+                return true;
+            }
+            unmap(); // 释放映射的内存区域
+            return false;
+        }
+        bytes_to_send -= temp;
+        bytes_have_sent += temp;
+
+        if (bytes_to_send <= 0)
+        {
+            unmap(); // 释放映射的内存区域
+            if (p_linger)
+            {
+                init_args(); // 初始化连接状态，清空缓冲区等
+                modfd(p_epollfd, p_sockfd, EPOLLIN);
+                return true;
+            }
+            else
+            {
+                modfd(p_epollfd, p_sockfd, EPOLLIN);
+                return false;
+            }
+        }
+    }
 }
 
 // 解析请求
@@ -407,7 +424,7 @@ void http_conn::unmap()
     if (p_file_address) // 如果文件已经映射到内存
     {
         munmap(p_file_address, p_file_stat.st_size); // 取消映射
-        p_file_address = 0;                          // 重置文件映射地址
+        p_file_address = nullptr;                    // 重置文件映射地址
     }
 }
 
