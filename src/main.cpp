@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
         printf("usage: %s port_number\n", basename(argv[0]));
         exit(-1);
     }
+    // argv[1]="10000";
     // 获取端口号
     int port = atoi(argv[1]);
 
