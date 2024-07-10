@@ -3,7 +3,7 @@
 // 互斥锁类实现
 locker::locker() {
     if (pthread_mutex_init(&p_mutex, NULL) != 0) {
-        throw std::runtime_error("Failed to initialize mutex");
+        throw std::runtime_error("互斥锁初始化失败");
     }
 }
 
@@ -26,7 +26,7 @@ pthread_mutex_t* locker::get() {
 // 条件变量类实现
 cond::cond() {
     if (pthread_cond_init(&p_cond, NULL) != 0) {
-        throw std::runtime_error("Failed to initialize condition variable");
+        throw std::runtime_error("条件变量初始化失败");
     }
 }
 
@@ -53,13 +53,13 @@ bool cond::broadcast() {
 // 信号量类实现
 sem::sem() {
     if (sem_init(&p_sem, 0, 0) != 0) {
-        throw std::runtime_error("Failed to initialize semaphore");
+        throw std::runtime_error("信号量初始化失败");
     }
 }
 
 sem::sem(int num) {
     if (sem_init(&p_sem, 0, num) != 0) {
-        throw std::runtime_error("Failed to initialize semaphore");
+        throw std::runtime_error("信号量初始化失败");
     }
 }
 

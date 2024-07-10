@@ -34,28 +34,28 @@ threadpool<T>::threadpool(int thread_number, int max_requests)
 {
     if (thread_number <= 0 || p_max_requests <= 0)
     {
-        throw std::runtime_error("Wrong thread pool parameters");
+        throw std::runtime_error("线程池初始化失败");
     }
     p_threads = new pthread_t[p_thread_number];
     if (!p_threads)
     {
-        throw std::runtime_error("Failed to initialize thread pool");
+        throw std::runtime_error("线程池初始化失败");
     }
 
     // 创建指定数量的线程，并且设置为线程脱离
     for (int i = 0; i < thread_number; i++)
     {
-        std::cout << "create the " << i << "th thread" << std::endl;
+        std::cout << "创建第" << i << "个线程" << std::endl;
 
         if (pthread_create(p_threads + i, nullptr, worker, this) != 0)
         {
             delete[] p_threads;
-            throw std::runtime_error("Failed to create thread");
+            throw std::runtime_error("创建线程失败");
         }
         if (pthread_detach(p_threads[i]))
         {
             delete[] p_threads;
-            throw std::runtime_error("Failed to detach thread");
+            throw std::runtime_error("创建线程失败");
         }
     }
 }

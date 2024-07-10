@@ -37,7 +37,7 @@ EpollMode getEpollMode(const std::string &filename)
 
     if (reader.ParseError() != 0)
     {
-        throw std::runtime_error("Unable to read configuration file.");
+        throw std::runtime_error("无法读取配置文件");
     }
 
     std::string mode = reader.Get("epoll", "mode", "LT");
@@ -51,7 +51,7 @@ EpollMode getEpollMode(const std::string &filename)
     }
     else
     {
-        throw std::runtime_error("Invalid epoll mode in configuration file.");
+        throw std::runtime_error("epoll模式配置错误,请检查配置文件");
     }
 }
 // 添加文件描述符到epoll
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     EpollMode mode = getEpollMode("../config.ini");
     if (argc <= 1)
     {
-        printf("usage: %s port_number\n", basename(argv[0]));
+        std::cerr <<"参数错误,没有端口号"<< std::endl;
         exit(-1);
     }
     // argv[1]="10000";
@@ -84,12 +84,12 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception &e) // 捕获标准异常
     {
-        std::cerr << "Exception: " << e.what() << std::endl;
+        std::cerr << "异常: " << e.what() << std::endl;
         return -1;
     }
     catch (...) // 其他异常
     {
-        std::cerr << "Unknown exception occurred" << std::endl;
+        std::cerr << "未知异常" << std::endl;
         exit(-1);
     }
 
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     int listenfd = socket(PF_INET, SOCK_STREAM, 0);
     if (listenfd < 0)
     {
-        std::cerr << "socket error" << std::endl;
+        std::cerr << "套接字错误" << std::endl;
         exit(-1);
     }
 
@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
     bind(listenfd, (struct sockaddr *)&address, sizeof(address));
     if (listenfd < 0)
     {
-        std::cerr << "bind error" << std::endl;
+        std::cerr << "绑定错误" << std::endl;
         exit(-1);
     }
 
@@ -128,14 +128,14 @@ int main(int argc, char *argv[])
     int epollfd = epoll_create(5); // 传入的参数没有意义
 
     // 将文件描述符添加到epoll内核事件表中
-    addfd(epollfd, listenfd, false, mode);
+    addfd(epollfd, listenfd, false, LT);
     http_conn::p_epollfd = epollfd;
     while (true)
     {
         int num = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1); // 阻塞等待事件发生
         if ((num < 0) && (errno != EINTR))
         {
-            std::cerr << "epoll failure" << std::endl;
+            std::cerr << "epoll 错误" << std::endl;
             break;
         }
 
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
                 int connfd = accept(listenfd, (struct sockaddr *)&client_address, &client_addrlength);
                 if (connfd < 0)
                 {
-                    std::cerr << "accept error" << std::endl;
+                    std::cerr << "连接错误" << std::endl;
                     continue;
                 }
 

@@ -9,8 +9,6 @@
 ../include/http_conn.h
 sys/epoll.h
 -
-inih/INIReader.h
-../include/inih/INIReader.h
 netinet/in.h
 -
 unistd.h
@@ -18,6 +16,16 @@ unistd.h
 fcntl.h
 -
 iostream
+-
+cstring
+-
+sys/stat.h
+-
+sys/mman.h
+-
+stdarg.h
+-
+sys/uio.h
 -
 
 ../include/inih/INIReader.h
