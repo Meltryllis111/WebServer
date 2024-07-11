@@ -2,14 +2,99 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>首页</title>
+    <title>小网站DEMO</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(to right, #ff7e5f, #feb47b); /* 漂亮的渐变背景 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            width: 75%;
+            max-width: 1600px;
+            height: 75%;
+            max-height: 750px;
+        }
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .input-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 12px 24px;
+            border-radius: 5px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #responseText {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            min-height: 500px;
+            word-wrap: break-word;
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h1>你好呀 (｡･∀･)ﾉﾞHi</h1>
+        <div id="responseText"></div>
+        <div class="input-container">
+            <input type="text" id="inputText" placeholder="输入你的文本...">
+            <button onclick="sendText()">发送</button>
+        </div>
+    </div>
 
-    <h1>欢迎来到首页~~~</h1> </br>
-    <img src="images/image1.jpg"  alt="ces" />
-    
+    <script>
+        function sendText() {
+            const inputText = document.getElementById('inputText').value;
+            const encodedText = encodeURIComponent(inputText);
+            const url = `你的服务器地址?text=${encodedText}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('responseText').innerText = data.response;
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+        }
+    </script>
 </body>
 </html>
