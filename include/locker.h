@@ -4,28 +4,29 @@
 #include <pthread.h>
 #include <stdexcept>
 #include <semaphore.h>
+#include <memory>
 
 // 互斥锁类
-class locker {
+class Locker {
 private:
-    pthread_mutex_t p_mutex;
+    std::unique_ptr<pthread_mutex_t, void(*)(pthread_mutex_t*)> mutex;
 
 public:
-    locker();
-    ~locker();
+    Locker();
+    ~Locker() = default;
     bool lock();
     bool unlock();
     pthread_mutex_t* get();
 };
 
 // 条件变量类
-class cond {
+class Condition {
 private:
-    pthread_cond_t p_cond;
+    std::unique_ptr<pthread_cond_t, void(*)(pthread_cond_t*)> cond;
 
 public:
-    cond();
-    ~cond();
+    Condition();
+    ~Condition() = default;
     bool wait(pthread_mutex_t* mutex);
     bool timedWait(pthread_mutex_t* mutex, const timespec* timeout);
     bool signal();
@@ -33,16 +34,16 @@ public:
 };
 
 // 信号量类
-class sem {
+class Semaphore {
 private:
-    sem_t p_sem;
+    std::unique_ptr<sem_t, void(*)(sem_t*)> sem;
 
 public:
-    sem();
-    sem(int num);
-    ~sem();
-    bool p();
-    bool v();
+    Semaphore();
+    explicit Semaphore(int num);
+    ~Semaphore() = default;
+    bool wait();
+    bool post();
 };
 
 #endif // LOCKER_H

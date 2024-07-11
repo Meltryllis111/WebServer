@@ -17,6 +17,8 @@ fcntl.h
 -
 iostream
 -
+string
+-
 cstring
 -
 sys/stat.h
@@ -27,6 +29,12 @@ stdarg.h
 -
 sys/uio.h
 -
+vector
+-
+memory
+-
+spdlog/spdlog.h
+-
 
 ../include/inih/INIReader.h
 map
@@ -36,10 +44,6 @@ string
 cstdint
 -
 
-../include/inih/ini.h
-stdio.h
--
-
 ../include/locker.h
 pthread.h
 -
@@ -47,38 +51,30 @@ stdexcept
 -
 semaphore.h
 -
+memory
+-
 
 ../include/threadpool.h
 list
 -
 cstdio
 -
+vector
+-
+memory
+-
+iostream
+-
 locker.h
 ../include/locker.h
-
-/workspaces/WebServer/lib/inih/INIReader.cpp
-algorithm
+thread
 -
-cctype
--
-cstdlib
--
-inih/ini.h
-/workspaces/WebServer/lib/inih/inih/ini.h
-inih/INIReader.h
-/workspaces/WebServer/lib/inih/inih/INIReader.h
-
-/workspaces/WebServer/src/http_conn.cpp
-http_conn.h
-/workspaces/WebServer/src/http_conn.h
 
 /workspaces/WebServer/src/locker.cpp
 locker.h
 /workspaces/WebServer/src/locker.h
 
 /workspaces/WebServer/src/main.cpp
-cstdio
--
 iostream
 -
 cstdlib
@@ -103,12 +99,14 @@ sys/epoll.h
 -
 csignal
 -
+memory
+-
 threadpool.h
 /workspaces/WebServer/src/threadpool.h
-locker.h
-/workspaces/WebServer/src/locker.h
 http_conn.h
 /workspaces/WebServer/src/http_conn.h
 inih/INIReader.h
 /workspaces/WebServer/src/inih/INIReader.h
+spdlog/spdlog.h
+-
 

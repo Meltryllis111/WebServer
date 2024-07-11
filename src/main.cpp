@@ -1,4 +1,3 @@
-#include <cstdio>
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
@@ -11,25 +10,26 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <csignal>
+#include <memory>
 #include "threadpool.h"
-#include "locker.h"
+// #include "locker.h"
 #include "http_conn.h"
 #include "inih/INIReader.h"
+#include <spdlog/spdlog.h>
 
-#define MAX_CLIENT_NUM 10000   // 最大的客户端个数
-#define MAX_EVENT_NUMBER 10000 // 最大的事件数
-
-
+constexpr int MAX_CLIENT_NUM = 10000;   // 最大的客户端个数
+constexpr int MAX_EVENT_NUMBER = 10000; // 最大的事件数
 
 // 添加信号捕捉
-void addSig(int sig, void (*hander)(int))
+void addSig(int sig, void (*handler)(int))
 {
     struct sigaction sa;
     memset(&sa, '\0', sizeof(sa));
-    sa.sa_handler = hander;
+    sa.sa_handler = handler;
     sigfillset(&sa.sa_mask);
-    sigaction(sig, &sa, NULL);
+    sigaction(sig, &sa, nullptr);
 }
+
 // 读取配置文件，获取epoll模式
 EpollMode getEpollMode(const std::string &filename)
 {
@@ -54,54 +54,67 @@ EpollMode getEpollMode(const std::string &filename)
         throw std::runtime_error("epoll模式配置错误,请检查配置文件");
     }
 }
+
 // 添加文件描述符到epoll
-extern void addfd(int epollfd, int fd, bool one_shot, EpollMode mode);
+extern void addFd(int epollfd, int fd, bool one_shot, EpollMode mode);
 // 从epoll删除文件描述符
-extern void removefd(int epollfd, int fd);
-// 修改文件描述符在epoll中的事件
-extern void modfd(int epollfd, int fd, int ev);
+extern void removeFd(int epollfd, int fd);
+// // 修改文件描述符在epoll中的事件
+// extern void modFd(int epollfd, int fd, int ev);
+
+// 实现 make_unique 函数
+template <typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args &&...args)
+{
+    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+void setupLogger()
+{
+    spdlog::set_level(spdlog::level::debug);            // 设置全局日志等级
+    spdlog::set_pattern("[%Y-%m-%d %H:%M:%S] [%l] %v"); // 设置日志格式
+}
 
 int main(int argc, char *argv[])
 {
+    setupLogger();
+
+    // if (argc <= 1) {
+    //     spdlog::error("参数错误,没有端口号");
+    //     return -1;
+    // }
+
     EpollMode mode = getEpollMode("../config.ini");
-    if (argc <= 1)
-    {
-        std::cerr <<"参数错误,没有端口号"<< std::endl;
-        exit(-1);
-    }
-    // argv[1]="10000";
-    // 获取端口号
-    int port = atoi(argv[1]);
+
+    // int port = std::stoi(argv[1]);
+    int port = std::stoi("12345");
+    spdlog::info("服务器启动，监听端口: {}", port);
 
     // 对SIGPIPE信号进行处理，防止因为客户端断开连接导致服务器崩溃
     addSig(SIGPIPE, SIG_IGN);
 
     // 创建线程池
-    threadpool<http_conn> *pool = nullptr;
+    std::unique_ptr<ThreadPool<HttpConnection>> pool;
     try
     {
-        pool = new threadpool<http_conn>;
+        pool = make_unique<ThreadPool<HttpConnection>>();
     }
-    catch (const std::exception &e) // 捕获标准异常
+    catch (const std::exception &e)
     {
-        std::cerr << "异常: " << e.what() << std::endl;
+        spdlog::error("创建线程池异常: {}", e.what());
         return -1;
-    }
-    catch (...) // 其他异常
-    {
-        std::cerr << "未知异常" << std::endl;
-        exit(-1);
     }
 
     // 创建一个数组保存客户端信息
-    http_conn *users = new http_conn[MAX_CLIENT_NUM];
-
+    // std::unique_ptr<HttpConnection[]> users(new HttpConnection[MAX_CLIENT_NUM]);
+    // std::vector<std::shared_ptr<HttpConnection>> users(MAX_CLIENT_NUM);
+    HttpConnection *users = new HttpConnection[MAX_CLIENT_NUM];
     // 创建一个socket
     int listenfd = socket(PF_INET, SOCK_STREAM, 0);
     if (listenfd < 0)
     {
-        std::cerr << "套接字错误" << std::endl;
-        exit(-1);
+        spdlog::error("套接字错误");
+        return -1;
     }
 
     // 设置端口复用
@@ -109,86 +122,108 @@ int main(int argc, char *argv[])
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     // 绑定端口
-    struct sockaddr_in address;
+    sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_port = htons(port);
     address.sin_addr.s_addr = htonl(INADDR_ANY);
-    bind(listenfd, (struct sockaddr *)&address, sizeof(address));
-    if (listenfd < 0)
+    if (bind(listenfd, (sockaddr *)&address, sizeof(address)) < 0)
     {
-        std::cerr << "绑定错误" << std::endl;
-        exit(-1);
+        spdlog::error("绑定错误");
+        return -1;
     }
 
     // 监听
-    listen(listenfd, 5); // backlog为5，定义了系统中挂起的连接队列的最大长度，半连接队列和全连接队列的总和
+    listen(listenfd, 5);
+    spdlog::info("监听套接字: {}", listenfd);
 
     // 创建epoll对象，事件数组，添加事件。实现IO多路复用
     epoll_event events[MAX_EVENT_NUMBER];
-    int epollfd = epoll_create(5); // 传入的参数没有意义
-
+    int epollfd = epoll_create(5);
+    if (epollfd == -1)
+    {
+        spdlog::error("创建 epoll 实例失败: {}", strerror(errno));
+        return -1;
+    }
+    spdlog::info("创建 epoll 实例成功, 文件描述符: {}", epollfd);
     // 将文件描述符添加到epoll内核事件表中
-    addfd(epollfd, listenfd, false, LT);
-    http_conn::p_epollfd = epollfd;
+    addFd(epollfd, listenfd, false, mode);
+    HttpConnection::epollFd = epollfd;
+
+    HttpConnection *conn;
     while (true)
     {
-        int num = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1); // 阻塞等待事件发生
+        spdlog::info("等待事件发生");
+        int num = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
         if ((num < 0) && (errno != EINTR))
         {
-            std::cerr << "epoll 错误" << std::endl;
+            spdlog::error("epoll 错误");
             break;
         }
 
         for (int i = 0; i < num; i++)
         {
             int sockfd = events[i].data.fd;
-            if (sockfd == listenfd) // 有客户端连接
+
+            if (sockfd == listenfd)
             {
-                struct sockaddr_in client_address;
+                sockaddr_in client_address;
                 socklen_t client_addrlength = sizeof(client_address);
-                int connfd = accept(listenfd, (struct sockaddr *)&client_address, &client_addrlength);
+                int connfd = accept(listenfd, (sockaddr *)&client_address, &client_addrlength);
                 if (connfd < 0)
                 {
-                    std::cerr << "连接错误" << std::endl;
+                    spdlog::warn("连接错误");
                     continue;
                 }
 
-                if (http_conn::p_user_count >= MAX_CLIENT_NUM) // 连接数满了
+                if (HttpConnection::userCount >= MAX_CLIENT_NUM)
                 {
+                    spdlog::warn("连接数已满，关闭新连接");
                     close(connfd);
                     continue;
                 }
-                // 初始化客户端数据
+                spdlog::info("新连接: {}", connfd);
                 users[connfd].init(connfd, client_address, mode);
             }
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
-                // 对方异常断开连接，关闭连接
-                users[sockfd].close_conn();
+                spdlog::info("连接断开: {}", sockfd);
+                users[sockfd].closeConnection();
             }
             else if (events[i].events & EPOLLIN)
             {
-                if (users[sockfd].read()) // 读完所有数据
+                spdlog::info("数据可读: {}", sockfd);
+                if (users[sockfd].read())
                 {
+                    conn = &users[sockfd];
+                    spdlog::info("加入任务队列: {}", sockfd);
                     pool->appendTask(users + sockfd);
                 }
                 else
                 {
-                    users[sockfd].close_conn();
+                    users[sockfd].closeConnection();
                 }
             }
             else if (events[i].events & EPOLLOUT)
             {
-                if (!users[sockfd].write()) // 写完所有数据
+                if (conn == &users[sockfd])
                 {
-                    users[sockfd].close_conn();
+                    spdlog::info("匹配成功");
+                }
+                else
+                {
+                    spdlog::info("匹配失败");
+                }
+
+                spdlog::info("开始写: {} {}", sockfd, users[sockfd].writeIndex);
+                if (!users[sockfd].write())
+                {
+                    users[sockfd].closeConnection();
                 }
             }
         }
     }
+
     close(epollfd);
     close(listenfd);
-    delete[] users;
-    delete pool;
     return 0;
 }

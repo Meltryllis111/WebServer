@@ -1,569 +1,559 @@
 #include "http_conn.h"
 
-int http_conn::p_epollfd = -1;
-int http_conn::p_user_count = 0;
+int HttpConnection::epollFd = -1;
+int HttpConnection::userCount = 0;
 
-http_conn::http_conn(/* args */)
+HttpConnection::HttpConnection()
+    : sockfd(-1), fileAddress(nullptr), readBuffer(READ_BUFFER_SIZE), writeBuffer(WRITE_BUFFER_SIZE) {}
+
+HttpConnection::~HttpConnection()
 {
-}
-http_conn::~http_conn()
-{
-}
-
-// 初始化连接的参数
-void http_conn::init_args()
-{
-    p_check_state = CHECK_STATE_REQUESTLINE; // 初始状态为检查请求行
-    p_linger = false;                        // 默认不保持链接  Connection : keep-alive保持连接
-
-    p_method = GET; // 默认请求方式为GET
-    p_url = 0;
-    p_version = 0;
-    p_content_length = 0;
-    p_host = 0;
-    p_start_line = 0;
-    p_checked_idx = 0;
-    p_read_idx = 0;
-    p_write_idx = 0;
-    bzero(p_read_buf, READ_BUFFER_SIZE);
-    bzero(p_write_buf, READ_BUFFER_SIZE);
-    bzero(p_real_file, FILENAME_LEN);
-}
-
-// 设置文件描述符为非阻塞
-void setnonblocking(int fd)
-{
-    int old_option = fcntl(fd, F_GETFL);
-    int new_option = old_option | O_NONBLOCK;
-    fcntl(fd, F_SETFL, new_option);
-}
-
-// 添加文件描述符到epoll
-void addfd(int epollfd, int fd, bool one_shot, EpollMode mode)
-{
-
-    epoll_event event;
-    event.data.fd = fd;
-    event.events = EPOLLIN | EPOLLRDHUP;
-    if (mode == ET)
+    if (sockfd != -1)
     {
-        event.events |= EPOLLET;
+        close(sockfd);
     }
-    if (one_shot)
+    if (fileAddress)
     {
-        event.events |= EPOLLONESHOT;
+        unmap();
     }
-    epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
-    setnonblocking(fd);
 }
 
-// 从epoll删除文件描述符
-void removefd(int epollfd, int fd)
+void HttpConnection::init(int sockfd, const sockaddr_in &addr, EpollMode mode)
 {
-    epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, 0);
-}
-
-// 修改文件描述符在epoll中的事件,重置EPOLLONESHOT事件,保证下一次可读时,EPOLLIN事件能够触发
-void modfd(int epollfd, int fd, int ev)
-{
-    epoll_event event;
-    event.data.fd = fd;
-    event.events = ev | EPOLLRDHUP | EPOLLONESHOT;
-    epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
-}
-
-// 初始化连接
-void http_conn::init(int sockfd, const sockaddr_in &addr, EpollMode mode)
-{
-    p_sockfd = sockfd;
-    p_address = addr;
+    this->sockfd = sockfd;
+    address = addr;
     int opt = 1;
-    setsockopt(p_sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    addfd(p_epollfd, p_sockfd, true, mode);
-    p_user_count++; // 统计用户数量
-    p_file_address = nullptr;
-    memset(p_write_buf, '\0', WRITE_BUFFER_SIZE); // 清空缓冲区
-    init_args();
+    setsockopt(this->sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    addFd(epollFd, sockfd, true, mode);
+    userCount++;
+    initConnection();
 }
 
-// 关闭连接
-void http_conn::close_conn()
+void HttpConnection::closeConnection()
 {
-    if (p_sockfd != -1)
+    if (sockfd != -1)
     {
-        removefd(p_epollfd, p_sockfd);
-        close(p_sockfd);
-        p_sockfd = -1;
-        p_user_count--; // 统计用户数量
+        spdlog::debug("关闭连接: {}", sockfd);
+        removeFd(epollFd, sockfd);
+        close(sockfd);
+        sockfd = -1;
+        writeIndex = 0;
+        userCount--;
     }
 }
 
-// 循环读取客户端数据
-bool http_conn::read()
+void HttpConnection::initConnection()
 {
-    if (p_read_idx >= READ_BUFFER_SIZE) // 缓冲区已满
+    spdlog::debug("初始化连接参数");
+    checkState = CheckState::REQUEST_LINE;
+    linger = false;
+    method = Method::GET;
+    url.clear();
+    version.clear();
+    contentLength = 0;
+    host.clear();
+    startLine = 0;
+    checkedIndex = 0;
+    readIndex = 0;
+    writeIndex = 0;
+    std::fill(readBuffer.begin(), readBuffer.end(), '\0');
+    std::fill(writeBuffer.begin(), writeBuffer.end(), '\0');
+    realFile.clear();
+}
+
+bool HttpConnection::read()
+{
+    if (readIndex >= READ_BUFFER_SIZE)
     {
-        std::cerr << "读缓冲区满了" << std::endl;
+        std::cerr << "Read buffer overflow" << std::endl;
         return false;
     }
-    int bytes_read = 0;
+    int bytesRead = 0;
     while (true)
     {
-        bytes_read = recv(p_sockfd, p_read_buf + p_read_idx, READ_BUFFER_SIZE - p_read_idx, 0);
-        if (bytes_read == -1)
+        bytesRead = recv(sockfd, readBuffer.data() + readIndex, READ_BUFFER_SIZE - readIndex, 0);
+        if (bytesRead == -1)
         {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) // 没有数据了
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
                 break;
             }
             return false;
         }
-        else if (bytes_read == 0) // 对方关闭连接
+        else if (bytesRead == 0)
         {
-            perror("客户端关闭连接");
+            std::cerr << "Client closed connection" << std::endl;
             return false;
         }
-        p_read_idx += bytes_read;
-        if (p_read_idx >= READ_BUFFER_SIZE)
+        readIndex += bytesRead;
+        if (readIndex >= READ_BUFFER_SIZE)
         {
-            // 防止缓冲区溢出
-            std::cerr << "读缓冲区溢出" << std::endl;
+            std::cerr << "Read buffer overflow" << std::endl;
             return false;
         }
     }
+    spdlog::debug("从连接 {} 读到数据: {}", sockfd, readBuffer.data());
     return true;
 }
 
-// 写数据
-bool http_conn::write()
+bool HttpConnection::write()
 {
     int temp = 0;
-    int bytes_have_sent = 0;         // 已经发送的字节
-    int bytes_to_send = p_write_idx; // 将要发送的字节数
+    int bytesHaveSent = 0;
+    int k = writeIndex;
+    int bytesToSend = writeIndex;
+    spdlog::debug("开始写操作，待发送字节数: {}", bytesToSend);
 
-    if (bytes_to_send == 0)
+    if (bytesToSend == 0)
     {
-        modfd(p_epollfd, p_sockfd, EPOLLIN);
-        init_args(); // 初始化连接状态，清空缓冲区等
+        spdlog::debug("没有数据需要发送，重置连接状态。");
+        modFd(epollFd, sockfd, EPOLLIN);
+        initConnection();
         return true;
     }
 
-    while (1)
+    while (true)
     {
-        temp = writev(p_sockfd, p_iv, p_iv_count);
+        temp = writev(sockfd, iv, ivCount);
+
         if (temp <= -1)
         {
             if (errno == EAGAIN)
             {
-                modfd(p_epollfd, p_sockfd, EPOLLOUT);
+                spdlog::debug("写缓冲区满，等待下一次写入机会。");
+                modFd(epollFd, sockfd, EPOLLOUT);
                 return true;
             }
-            unmap(); // 释放映射的内存区域
+            spdlog::error("写入错误，关闭连接 {}。错误码: {}", sockfd, errno);
+            unmap();
             return false;
         }
-        bytes_to_send -= temp;
-        bytes_have_sent += temp;
 
-        if (bytes_to_send <= 0)
+        spdlog::debug("写入字节数: {}", temp);
+
+        bytesToSend -= temp;
+        bytesHaveSent += temp;
+
+
+        if (bytesToSend <= 0)
         {
-            unmap(); // 释放映射的内存区域
-            if (p_linger)
+            unmap();
+            if (linger)
             {
-                init_args(); // 初始化连接状态，清空缓冲区等
-                modfd(p_epollfd, p_sockfd, EPOLLIN);
+                spdlog::debug("用户保持连接，重置连接状态。");
+                initConnection();
+                modFd(epollFd, sockfd, EPOLLIN);
                 return true;
             }
             else
             {
-                modfd(p_epollfd, p_sockfd, EPOLLIN);
+                spdlog::debug("短连接，关闭连接。");
+                modFd(epollFd, sockfd, EPOLLIN);
                 return false;
             }
         }
     }
 }
 
-// 解析请求
-http_conn::HTTP_CODE http_conn::process_read()
+HttpConnection::HttpCode HttpConnection::processRead()
 {
-    LINE_STATUS line_status = LINE_OK;
-    HTTP_CODE ret = NO_REQUEST;
-    char *text = 0;
+    LineStatus lineStatus = LineStatus::OK;
+    HttpCode ret = HttpCode::NO_REQUEST;
+    std::string text;
 
-    while ((line_status = parse_line()) == LINE_OK)
+    while ((lineStatus = parseLine()) == LineStatus::OK)
     {
-        text = get_line();
-        p_start_line = p_checked_idx;
-        switch (p_check_state)
+        text = getLine();
+        startLine = checkedIndex;
+        switch (checkState)
         {
-        case CHECK_STATE_REQUESTLINE:
+        case CheckState::REQUEST_LINE:
         {
-            ret = process_request_line(text);
-            if (ret == BAD_REQUEST)
+            ret = parseRequestLine(text);
+            if (ret == HttpCode::BAD_REQUEST)
             {
-                return BAD_REQUEST;
+                return HttpCode::BAD_REQUEST;
             }
             break;
         }
-        case CHECK_STATE_HEADER:
+        case CheckState::HEADER:
         {
-            ret = process_request_header(text);
-            if (ret == BAD_REQUEST)
+            ret = parseHeaders(text);
+            if (ret == HttpCode::BAD_REQUEST)
             {
-                return BAD_REQUEST;
+                return HttpCode::BAD_REQUEST;
             }
-            else if (ret == GET_REQUEST)
+            else if (ret == HttpCode::GET_REQUEST)
             {
-                return do_request();
+                return handleRequest();
             }
             break;
         }
-        case CHECK_STATE_CONTENT:
+        case CheckState::CONTENT:
         {
-            ret = process_request_content(text);
-            if (ret == GET_REQUEST)
+            ret = parseContent(text);
+            if (ret == HttpCode::GET_REQUEST)
             {
-                return do_request();
+                return handleRequest();
             }
-            line_status = LINE_OPEN;
+            lineStatus = LineStatus::OPEN;
             break;
         }
         default:
         {
-            return INTERNAL_ERROR;
+            return HttpCode::INTERNAL_ERROR;
         }
         }
     }
 
-    return NO_REQUEST;
+    return HttpCode::NO_REQUEST;
 }
 
-// 解析请求行
-http_conn::HTTP_CODE http_conn::process_request_line(char *text)
+HttpConnection::HttpCode HttpConnection::parseRequestLine(std::string &text)
 {
-    char *url = strpbrk(text, " \t"); // 查找空格或制表符，提取 URL。
-    if (!url)
+    auto urlPos = text.find(' ');
+    if (urlPos == std::string::npos)
     {
-        return BAD_REQUEST;
+        return HttpCode::BAD_REQUEST;
     }
-    *url++ = '\0';
 
-    char *method = text;
-    if (strcasecmp(method, "GET") == 0)
+    std::string methodStr = text.substr(0, urlPos);
+    if (methodStr == "GET")
     {
-        p_method = GET;
+        method = Method::GET;
     }
     else
     {
-        return BAD_REQUEST;
+        return HttpCode::BAD_REQUEST;
     }
 
-    url += strspn(url, " \t");
-    char *version = strpbrk(url, " \t");
-    if (!version)
+    auto versionPos = text.find(' ', urlPos + 1);
+    if (versionPos == std::string::npos)
     {
-        return BAD_REQUEST;
-    }
-    *version++ = '\0';
-    version += strspn(version, " \t");
-
-    if (strcasecmp(version, "HTTP/1.1") != 0) // 仅支持HTTP/1.1
-    {
-        return BAD_REQUEST;
+        return HttpCode::BAD_REQUEST;
     }
 
-    if (strncasecmp(url, "http://", 7) == 0) // 跳过http://
+    url = text.substr(urlPos + 1, versionPos - urlPos - 1);
+    version = text.substr(versionPos + 1);
+    if (version != "HTTP/1.1")
     {
-        url += 7;
-        url = strchr(url, '/');
+        return HttpCode::BAD_REQUEST;
     }
 
-    if (!url || url[0] != '/')
+    if (url.find("http://") == 0)
     {
-        return BAD_REQUEST;
-    }
-
-    p_url = url;
-    p_check_state = CHECK_STATE_HEADER;
-    return NO_REQUEST;
-}
-
-// 解析请求头
-http_conn::HTTP_CODE http_conn::process_request_header(char *text)
-{
-    if (text[0] == '\0')
-    {
-        if (p_content_length != 0)
+        url = url.substr(7);
+        auto urlStartPos = url.find('/');
+        if (urlStartPos != std::string::npos)
         {
-            p_check_state = CHECK_STATE_CONTENT;
-            return NO_REQUEST;
-        }
-        return GET_REQUEST;
-    }
-    else if (strncasecmp(text, "Host:", 5) == 0) // 解析Host字段
-    {
-        text += 5;
-        text += strspn(text, " \t");
-        p_host = text;
-    }
-    else if (strncasecmp(text, "Connection:", 11) == 0) // 解析Connection字段
-    {
-        text += 11;
-        text += strspn(text, " \t");
-        if (strncasecmp(text, "keep-alive", 10) == 0) // 保持连接
-        {
-            p_linger = true;
+            url = url.substr(urlStartPos);
         }
     }
-    else if (strncasecmp(text, "Content-Length:", 15) == 0) // 解析Content-Length字段
+
+    if (url.empty() || url[0] != '/')
     {
-        text += 15;
-        text += strspn(text, " \t");
-        p_content_length = atol(text);
+        return HttpCode::BAD_REQUEST;
     }
-    else if (strncasecmp(text, "Accept-Encoding:", 16) == 0) // 解析Accept-Encoding字段
-    {
-        text += 16;
-        text += strspn(text, " \t");
-        p_accept_encoding = text;
-    }
-    else
-    {
-        // 其他头部字段可以根据需要解析
-    }
-    return NO_REQUEST;
+
+    checkState = CheckState::HEADER;
+    return HttpCode::NO_REQUEST;
 }
 
-// 解析请求体
-http_conn::HTTP_CODE http_conn::process_request_content(char *text)
+HttpConnection::HttpCode HttpConnection::parseHeaders(std::string &text)
 {
-    if (p_read_idx >= (p_content_length + p_checked_idx)) // 请求体读取完毕
+    if (text.empty())
     {
-        text[p_content_length] = '\0';
-        p_content = text;
-        return GET_REQUEST;
+        if (contentLength != 0)
+        {
+            checkState = CheckState::CONTENT;
+            return HttpCode::NO_REQUEST;
+        }
+        return HttpCode::GET_REQUEST;
     }
-    return NO_REQUEST;
+    else if (text.find("Host:") == 0)
+    {
+        host = text.substr(5);
+        host.erase(0, host.find_first_not_of(" \t"));
+    }
+    else if (text.find("Connection:") == 0)
+    {
+        std::string connStr = text.substr(11);
+        connStr.erase(0, connStr.find_first_not_of(" \t"));
+        if (connStr == "keep-alive")
+        {
+            linger = true;
+        }
+    }
+    else if (text.find("Content-Length:") == 0)
+    {
+        std::string lenStr = text.substr(15);
+        lenStr.erase(0, lenStr.find_first_not_of(" \t"));
+        contentLength = std::stol(lenStr);
+    }
+    else if (text.find("Accept-Encoding:") == 0)
+    {
+        acceptEncoding = text.substr(16);
+        acceptEncoding.erase(0, acceptEncoding.find_first_not_of(" \t"));
+    }
+    return HttpCode::NO_REQUEST;
 }
 
-// 解析一行
-http_conn::LINE_STATUS http_conn::parse_line()
+HttpConnection::HttpCode HttpConnection::parseContent(std::string &text)
+{
+    if (readIndex >= (contentLength + checkedIndex))
+    {
+        content = text.substr(0, contentLength);
+        return HttpCode::GET_REQUEST;
+    }
+    return HttpCode::NO_REQUEST;
+}
+
+HttpConnection::LineStatus HttpConnection::parseLine()
 {
     char temp;
-    for (; p_checked_idx < p_read_idx; ++p_checked_idx)
+    for (; checkedIndex < readIndex; ++checkedIndex)
     {
-        temp = p_read_buf[p_checked_idx];
+        temp = readBuffer[checkedIndex];
         if (temp == '\r')
         {
-            if ((p_checked_idx + 1) == p_read_idx)
+            if ((checkedIndex + 1) == readIndex)
             {
-                return LINE_OPEN;
+                return LineStatus::OPEN;
             }
-            else if (p_read_buf[p_checked_idx + 1] == '\n')
+            else if (readBuffer[checkedIndex + 1] == '\n')
             {
-                p_read_buf[p_checked_idx++] = '\0';
-                p_read_buf[p_checked_idx++] = '\0';
-                return LINE_OK;
+                readBuffer[checkedIndex++] = '\0';
+                readBuffer[checkedIndex++] = '\0';
+                return LineStatus::OK;
             }
-            return LINE_BAD;
+            return LineStatus::BAD;
         }
         else if (temp == '\n')
         {
-            if (p_checked_idx > 1 && p_read_buf[p_checked_idx - 1] == '\r')
+            if (checkedIndex > 1 && readBuffer[checkedIndex - 1] == '\r')
             {
-                p_read_buf[p_checked_idx - 1] = '\0';
-                p_read_buf[p_checked_idx++] = '\0';
-                return LINE_OK;
+                readBuffer[checkedIndex - 1] = '\0';
+                readBuffer[checkedIndex++] = '\0';
+                return LineStatus::OK;
             }
-            return LINE_BAD;
+            return LineStatus::BAD;
         }
     }
-    return LINE_OPEN;
+    return LineStatus::OPEN;
 }
 
-// 获取一行
-char *http_conn::get_line()
+std::string HttpConnection::getLine()
 {
-    return p_read_buf + p_start_line;
+    return std::string(readBuffer.data() + startLine);
 }
 
-// 处理请求,将请求文件映射到内存
-http_conn::HTTP_CODE http_conn::do_request()
+HttpConnection::HttpCode HttpConnection::handleRequest()
 {
-    strcpy(p_real_file, doc_root);
-    int len = strlen(doc_root);
-    strncpy(p_real_file + len, p_url, FILENAME_LEN - len - 1);
-    // 获取m_real_file文件的相关的状态信息，-1失败，0成功
-    if (stat(p_real_file, &p_file_stat) < 0)
+    realFile = docRoot + url;
+    if (stat(realFile.c_str(), &fileStat) < 0)
     {
-        return NO_RESOURCE;
+        return HttpCode::NO_RESOURCE;
     }
 
-    // 判断访问权限
-    if (!(p_file_stat.st_mode & S_IROTH))
+    if (!(fileStat.st_mode & S_IROTH))
     {
-        return FORBIDDEN_REQUEST;
+        return HttpCode::FORBIDDEN_REQUEST;
     }
 
-    // 判断是否是目录
-    if (S_ISDIR(p_file_stat.st_mode))
+    if (S_ISDIR(fileStat.st_mode))
     {
-        return BAD_REQUEST;
+        return HttpCode::BAD_REQUEST;
     }
 
-    // 以只读方式打开文件
-    int fd = open(p_real_file, O_RDONLY);
-    // 创建内存映射
-    p_file_address = (char *)mmap(0, p_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    int fd = open(realFile.c_str(), O_RDONLY);
+    fileAddress = static_cast<char *>(mmap(0, fileStat.st_size, PROT_READ, MAP_PRIVATE, fd, 0));
     close(fd);
-    return FILE_REQUEST;
+    return HttpCode::FILE_REQUEST;
 }
 
-// 取消映射文件到内存
-void http_conn::unmap()
+void HttpConnection::unmap()
 {
-    if (p_file_address) // 如果文件已经映射到内存
+    if (fileAddress)
     {
-        munmap(p_file_address, p_file_stat.st_size); // 取消映射
-        p_file_address = nullptr;                    // 重置文件映射地址
+        munmap(fileAddress, fileStat.st_size);
+        fileAddress = nullptr;
     }
 }
 
-// 往响应中写入内容
-bool http_conn::add_response(const char *format, ...)
+bool HttpConnection::addResponse(const char *format, ...)
 {
-    if (p_write_idx >= WRITE_BUFFER_SIZE)
-    { // 检查缓冲区是否已满
+    if (writeIndex >= WRITE_BUFFER_SIZE)
+    {
         return false;
     }
-    va_list arg_list;
-    va_start(arg_list, format);                                                                            // 初始化可变参数列表
-    int len = vsnprintf(p_write_buf + p_write_idx, WRITE_BUFFER_SIZE - 1 - p_write_idx, format, arg_list); // 格式化字符串并写入缓冲区
-    if (len >= (WRITE_BUFFER_SIZE - 1 - p_write_idx))
-    { // 检查是否超出缓冲区大小
+    va_list argList;
+    va_start(argList, format);
+    int len = vsnprintf(writeBuffer.data() + writeIndex, WRITE_BUFFER_SIZE - 1 - writeIndex, format, argList);
+    if (len >= (WRITE_BUFFER_SIZE - 1 - writeIndex))
+    {
         return false;
     }
-    p_write_idx += len; // 更新缓冲区写入索引
-    va_end(arg_list);   // 清理可变参数列表
+    writeIndex += len;
+    int i = this->writeIndex;
+    va_end(argList);
     return true;
 }
 
-// 添加HTTP状态行到响应中
-bool http_conn::add_status_line(int status, const char *title)
+bool HttpConnection::addStatusLine(int status, const std::string &title)
 {
-    return add_response("%s %d %s\r\n", "HTTP/1.1", status, title);
+    return addResponse("%s %d %s\r\n", "HTTP/1.1", status, title.c_str());
 }
 
-// 添加HTTP头部到响应中
-bool http_conn::add_headers(int content_len)
+bool HttpConnection::addHeaders(int contentLength)
 {
-    add_content_length(content_len); // 添加Content-Length头部
-    add_content_type();              // 添加Content-Type头部
-    add_linger();                    // 添加Connection头部
-    add_blank_line();                // 添加一个空行，表示头部结束
+    addContentLength(contentLength);
+    addContentType();
+    addLinger();
+    addBlankLine();
+    return true;
 }
 
-// 添加Content-Length头部到响应中
-bool http_conn::add_content_length(int content_len)
+bool HttpConnection::addContentLength(int contentLength)
 {
-    return add_response("Content-Length: %d\r\n", content_len);
+    return addResponse("Content-Length: %d\r\n", contentLength);
 }
 
-// 添加Connection头部到响应中
-bool http_conn::add_linger()
+bool HttpConnection::addLinger()
 {
-    return add_response("Connection: %s\r\n", (p_linger == true) ? "keep-alive" : "close");
+    return addResponse("Connection: %s\r\n", linger ? "keep-alive" : "close");
 }
 
-// 添加一个空行到响应中，表示头部结束
-bool http_conn::add_blank_line()
+bool HttpConnection::addBlankLine()
 {
-    return add_response("%s", "\r\n");
+    return addResponse("%s", "\r\n");
 }
 
-// 添加内容到响应中
-bool http_conn::add_content(const char *content)
+bool HttpConnection::addContent(const std::string &content)
 {
-    return add_response("%s", content);
+    return addResponse("%s", content.c_str());
 }
 
-// 添加Content-Type头部到响应中
-bool http_conn::add_content_type()
+bool HttpConnection::addContentType()
 {
-    return add_response("Content-Type: text/html; charset=UTF-8\r\n");
+    return addResponse("Content-Type: text/html; charset=UTF-8\r\n");
 }
 
-// 根据服务器处理HTTP请求的结果，决定返回给客户端的内容
-bool http_conn::process_write(HTTP_CODE ret)
+bool HttpConnection::processWrite(HttpCode ret)
 {
+    spdlog::debug("处理响应报文");
     switch (ret)
     {
-    case INTERNAL_ERROR: // 内部服务器错误
-        add_status_line(500, error_500_title);
-        add_headers(strlen(error_500_form));
-        if (!add_content(error_500_form))
+    case HttpCode::INTERNAL_ERROR:
+        addStatusLine(500, error500Title);
+        addHeaders(error500Form.size());
+        if (!addContent(error500Form))
         {
             return false;
         }
         break;
-    case BAD_REQUEST: // 坏请求
-        add_status_line(400, error_400_title);
-        add_headers(strlen(error_400_form));
-        if (!add_content(error_400_form))
+    case HttpCode::BAD_REQUEST:
+        addStatusLine(400, error400Title);
+        addHeaders(error400Form.size());
+        if (!addContent(error400Form))
         {
             return false;
         }
         break;
-    case NO_RESOURCE: // 资源不存在
-        add_status_line(404, error_404_title);
-        add_headers(strlen(error_404_form));
-        if (!add_content(error_404_form))
+    case HttpCode::NO_RESOURCE:
+        addStatusLine(404, error404Title);
+        addHeaders(error404Form.size());
+        if (!addContent(error404Form))
         {
             return false;
         }
         break;
-    case FORBIDDEN_REQUEST: // 禁止访问
-        add_status_line(403, error_403_title);
-        add_headers(strlen(error_403_form));
-        if (!add_content(error_403_form))
+    case HttpCode::FORBIDDEN_REQUEST:
+        addStatusLine(403, error403Title);
+        addHeaders(error403Form.size());
+        if (!addContent(error403Form))
         {
             return false;
         }
         break;
-    case FILE_REQUEST: // 文件请求
-        add_status_line(200, ok_200_title);
-        add_headers(p_file_stat.st_size);
-        p_iv[0].iov_base = p_write_buf;
-        p_iv[0].iov_len = p_write_idx;
-        p_iv[1].iov_base = p_file_address;
-        p_iv[1].iov_len = p_file_stat.st_size;
-        p_iv_count = 2;
+    case HttpCode::FILE_REQUEST:
+        addStatusLine(200, ok200Title);
+        addHeaders(fileStat.st_size);
+        iv[0].iov_base = writeBuffer.data();
+        iv[0].iov_len = writeIndex;
+        iv[1].iov_base = fileAddress;
+        iv[1].iov_len = fileStat.st_size;
+        ivCount = 2;
+        spdlog::debug("添加响应内容成功");
         return true;
     default:
         return false;
     }
 
-    p_iv[0].iov_base = p_write_buf;
-    p_iv[0].iov_len = p_write_idx;
-    p_iv_count = 1;
+    iv[0].iov_base = writeBuffer.data();
+    iv[0].iov_len = writeIndex;
+    ivCount = 1;
     return true;
 }
 
-// 处理客户请求的入口函数
-void http_conn::process()
+void HttpConnection::process()
 {
-    // 解析HTTP请求
-    HTTP_CODE read_ret = process_read();
-    if (read_ret == NO_REQUEST)
+    HttpCode readRet = processRead();
+    if (readRet == HttpCode::NO_REQUEST)
     {
-        modfd(p_epollfd, p_sockfd, EPOLLIN);
+        modFd(epollFd, sockfd, EPOLLIN);
         return;
     }
 
-    // 生成响应
-    bool write_ret = process_write(read_ret);
-    if (!write_ret)
+    bool writeRet = processWrite(readRet);
+    if (!writeRet)
     {
-        close_conn();
+        closeConnection();
     }
-    modfd(p_epollfd, p_sockfd, EPOLLOUT);
+    modFd(epollFd, sockfd, EPOLLOUT);
+}
+
+void setNonBlocking(int fd)
+{
+    int oldOption = fcntl(fd, F_GETFL);
+    int newOption = oldOption | O_NONBLOCK;
+    fcntl(fd, F_SETFL, newOption);
+}
+
+void addFd(int epollfd, int fd, bool oneShot, EpollMode mode)
+{
+    epoll_event event;
+    event.data.fd = fd;
+    event.events = EPOLLIN | EPOLLRDHUP;
+    if (mode == EpollMode::ET)
+    {
+        event.events |= EPOLLET;
+    }
+    if (oneShot)
+    {
+        event.events |= EPOLLONESHOT;
+    }
+    epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
+    setNonBlocking(fd);
+}
+
+void removeFd(int epollfd, int fd)
+{
+    epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, 0);
+    close(fd);
+}
+
+void modFd(int epollfd, int fd, int ev)
+{
+    epoll_event event;
+    event.data.fd = fd;
+    event.events = ev | EPOLLRDHUP | EPOLLONESHOT;
+    spdlog::debug("将连接 {} 的事件修改为: {}", fd, static_cast<uint32_t>(event.events));
+    if (epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event) == -1)
+    {
+        spdlog::error("修改事件失败: {},epollfd: {}", strerror(errno), epollfd);
+    }
+    else
+    {
+        spdlog::info("成功修改连接 {} 的事件", fd);
+    }
 }

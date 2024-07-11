@@ -1,1 +1,0 @@
-/usr/bin/c++     CMakeFiles/your_project.dir/src/http_conn.cpp.o CMakeFiles/your_project.dir/src/locker.cpp.o CMakeFiles/your_project.dir/src/main.cpp.o CMakeFiles/your_project.dir/lib/inih/ini.c.o CMakeFiles/your_project.dir/lib/inih/INIReader.cpp.o  -o your_project 
