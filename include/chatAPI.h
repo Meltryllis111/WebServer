@@ -11,7 +11,7 @@ std::string getSecretKey(const std::string &filename);
 std::string extract_value(const std::string &json, const std::string &key);
 std::string get_access_token(const std::string &api_key, const std::string &secret_key);
 std::string chat_with_ai(const std::string &user_input);
-
+std::string getAddress(const std::string &filename);
 // 声明常量
 extern const std::string CONFIG_FILE_API;
 

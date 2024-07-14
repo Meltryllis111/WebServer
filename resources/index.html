@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小网站DEMO</title>
     <style>
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Helvetica Neue', Arial, sans-serif, 'Microsoft YaHei', 'SimHei', 'SimSun';
             background: linear-gradient(to right, #ff7e5f, #feb47b);
             display: flex;
             justify-content: center;
@@ -14,7 +14,6 @@
             height: 100vh;
             margin: 0;
             color: #333;
-            overflow: hidden;
         }
         .container {
             background: rgba(255, 255, 255, 0.9);
@@ -22,29 +21,39 @@
             border-radius: 12px;
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
             text-align: center;
-            width: 80%;
-            max-width: 1000px;
-            height: 80%;
-            max-height: 85%;
+            width: 90%;
+            max-width: 1200px;
+            height: 90%;
+            max-height: 90%;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
         }
         h1 {
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             color: #333;
             font-size: 2.5em;
+        }
+        .subtitle {
+            margin-bottom: 5px;
+            color: #666;
+            font-size: 1em;
+        }
+        .link {
+            margin-bottom: 20px;
+            color: #007bff;
+            font-size: 1em;
         }
         .input-container {
             display: flex;
             justify-content: center;
             align-items: center;
             width: 100%;
+            margin-top: 20px;
         }
         input[type="text"] {
             flex: 1;
             padding: 12px;
-            margin: 10px 0;
             border-radius: 5px;
             border: 1px solid #ddd;
             font-size: 16px;
@@ -65,18 +74,16 @@
             background-color: #0056b3;
         }
         #responseText {
-            margin-top: 20px;
+            flex: 1;
             padding: 15px;
             background-color: #f8f9fa;
             border-radius: 5px;
             border: 1px solid #ddd;
-            min-height: 300px;
-            max-height: 600px;
             overflow-y: auto;
             word-wrap: break-word;
             display: flex;
-            justify-content: flex-start;
-            align-items: flex-start;
+            justify-content: center; /* 水平居中 */
+            align-items: center; /* 垂直居中 */
             text-align: left;
             white-space: pre-wrap; /* 保留换行符 */
         }
@@ -96,7 +103,9 @@
 </head>
 <body>
     <div class="container">
-        <h1>你好呀 (｡･∀･)ﾉﾞHi</h1>
+        <h1>Hi~ 你好呀</h1>
+        <div class="subtitle">使用文心一言免费API，仅用作服务器部署和测试</div>
+        <div class="link">服务器源码：<a href="https://github.com/Meltryllis111/WebServer" target="_blank">GitHub</a></div>
         <div id="responseText"></div>
         <div class="input-container">
             <input type="text" id="inputText" placeholder="输入你的文本..." onkeydown="if (event.key === 'Enter') sendText()">
@@ -105,6 +114,47 @@
     </div>
 
     <script>
+        let serverUrl = '';
+
+        async function fetchConfig() {
+            try {
+                const response = await fetch('path/to/config.ini');
+                const configText = await response.text();
+                const config = parseIni(configText);
+                serverUrl = config.server.url;
+            } catch (error) {
+                console.error('Error fetching config:', error);
+            }
+        }
+
+        function parseIni(data) {
+            const regex = {
+                section: /^\s*\[\s*([^\]]*)\s*\]\s*$/,
+                param: /^\s*([\w\.\-\_]+)\s*=\s*(.*?)\s*$/,
+                comment: /^\s*;.*$/
+            };
+            const value = {};
+            const lines = data.split(/[\r\n]+/);
+            let section = null;
+            lines.forEach(line => {
+                if (regex.comment.test(line)) {
+                    return;
+                } else if (regex.param.test(line)) {
+                    const match = line.match(regex.param);
+                    if (section) {
+                        value[section][match[1]] = match[2];
+                    } else {
+                        value[match[1]] = match[2];
+                    }
+                } else if (regex.section.test(line)) {
+                    const match = line.match(regex.section);
+                    value[match[1]] = {};
+                    section = match[1];
+                }
+            });
+            return value;
+        }
+
         function sendText() {
             const inputTextElement = document.getElementById('inputText');
             const responseTextElement = document.getElementById('responseText');
@@ -116,7 +166,7 @@
             // 显示转圈圈等待图标
             responseTextElement.innerHTML = '<div class="spinner"></div>';
 
-            fetch('http://localhost:12345/submit', {
+            fetch(serverUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -133,6 +183,9 @@
                 responseTextElement.innerText = '发送失败，请重试。';
             });
         }
+
+        // 在页面加载时获取配置
+        window.onload = fetchConfig;
     </script>
 </body>
 </html>
