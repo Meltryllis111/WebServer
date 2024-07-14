@@ -12,11 +12,11 @@
 #include <csignal>
 #include <memory>
 #include "threadpool.h"
-// #include "locker.h"
 #include "http_conn.h"
 #include "inih/INIReader.h"
 #include <spdlog/spdlog.h>
 
+const std::string CONFIG_FILE = "../config.ini";
 constexpr int MAX_CLIENT_NUM = 10000;   // 最大的客户端个数
 constexpr int MAX_EVENT_NUMBER = 10000; // 最大的事件数
 
@@ -31,9 +31,8 @@ void addSig(int sig, void (*handler)(int))
 }
 
 // 读取配置文件，获取epoll模式
-EpollMode getEpollMode(const std::string &filename)
+EpollMode getEpollMode(const INIReader reader)
 {
-    INIReader reader(filename);
 
     if (reader.ParseError() != 0)
     {
@@ -77,17 +76,17 @@ void setupLogger()
 
 int main(int argc, char *argv[])
 {
+    INIReader reader(CONFIG_FILE);
     setupLogger();
-
     // if (argc <= 1) {
     //     spdlog::error("参数错误,没有端口号");
     //     return -1;
     // }
 
-    EpollMode mode = getEpollMode("../config.ini");
+    EpollMode mode = getEpollMode(reader);
 
     // int port = std::stoi(argv[1]);
-    int port = std::stoi("12345");
+    int port = std::stoi(reader.Get("PORT", "port", "12345"));
     spdlog::info("服务器启动，监听端口: {}", port);
 
     // 对SIGPIPE信号进行处理，防止因为客户端断开连接导致服务器崩溃

@@ -177,6 +177,33 @@ lib/inih/ini.c.s:
 	$(MAKE) -f CMakeFiles/WebServer.dir/build.make CMakeFiles/WebServer.dir/lib/inih/ini.c.s
 .PHONY : lib/inih/ini.c.s
 
+src/chatAPI.o: src/chatAPI.cpp.o
+
+.PHONY : src/chatAPI.o
+
+# target to build an object file
+src/chatAPI.cpp.o:
+	$(MAKE) -f CMakeFiles/WebServer.dir/build.make CMakeFiles/WebServer.dir/src/chatAPI.cpp.o
+.PHONY : src/chatAPI.cpp.o
+
+src/chatAPI.i: src/chatAPI.cpp.i
+
+.PHONY : src/chatAPI.i
+
+# target to preprocess a source file
+src/chatAPI.cpp.i:
+	$(MAKE) -f CMakeFiles/WebServer.dir/build.make CMakeFiles/WebServer.dir/src/chatAPI.cpp.i
+.PHONY : src/chatAPI.cpp.i
+
+src/chatAPI.s: src/chatAPI.cpp.s
+
+.PHONY : src/chatAPI.s
+
+# target to generate assembly for a file
+src/chatAPI.cpp.s:
+	$(MAKE) -f CMakeFiles/WebServer.dir/build.make CMakeFiles/WebServer.dir/src/chatAPI.cpp.s
+.PHONY : src/chatAPI.cpp.s
+
 src/http_conn.o: src/http_conn.cpp.o
 
 .PHONY : src/http_conn.o
@@ -273,6 +300,9 @@ help:
 	@echo "... lib/inih/ini.o"
 	@echo "... lib/inih/ini.i"
 	@echo "... lib/inih/ini.s"
+	@echo "... src/chatAPI.o"
+	@echo "... src/chatAPI.i"
+	@echo "... src/chatAPI.s"
 	@echo "... src/http_conn.o"
 	@echo "... src/http_conn.i"
 	@echo "... src/http_conn.s"

@@ -57,9 +57,22 @@ include CMakeFiles/WebServer.dir/progress.make
 # Include the compile flags for this target's objects.
 include CMakeFiles/WebServer.dir/flags.make
 
+CMakeFiles/WebServer.dir/src/chatAPI.cpp.o: CMakeFiles/WebServer.dir/flags.make
+CMakeFiles/WebServer.dir/src/chatAPI.cpp.o: ../src/chatAPI.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/WebServer.dir/src/chatAPI.cpp.o"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/WebServer.dir/src/chatAPI.cpp.o -c /workspaces/WebServer/src/chatAPI.cpp
+
+CMakeFiles/WebServer.dir/src/chatAPI.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/WebServer.dir/src/chatAPI.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /workspaces/WebServer/src/chatAPI.cpp > CMakeFiles/WebServer.dir/src/chatAPI.cpp.i
+
+CMakeFiles/WebServer.dir/src/chatAPI.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/WebServer.dir/src/chatAPI.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /workspaces/WebServer/src/chatAPI.cpp -o CMakeFiles/WebServer.dir/src/chatAPI.cpp.s
+
 CMakeFiles/WebServer.dir/src/http_conn.cpp.o: CMakeFiles/WebServer.dir/flags.make
 CMakeFiles/WebServer.dir/src/http_conn.cpp.o: ../src/http_conn.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/WebServer.dir/src/http_conn.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/WebServer.dir/src/http_conn.cpp.o"
 	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/WebServer.dir/src/http_conn.cpp.o -c /workspaces/WebServer/src/http_conn.cpp
 
 CMakeFiles/WebServer.dir/src/http_conn.cpp.i: cmake_force
@@ -72,7 +85,7 @@ CMakeFiles/WebServer.dir/src/http_conn.cpp.s: cmake_force
 
 CMakeFiles/WebServer.dir/src/locker.cpp.o: CMakeFiles/WebServer.dir/flags.make
 CMakeFiles/WebServer.dir/src/locker.cpp.o: ../src/locker.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/WebServer.dir/src/locker.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/WebServer.dir/src/locker.cpp.o"
 	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/WebServer.dir/src/locker.cpp.o -c /workspaces/WebServer/src/locker.cpp
 
 CMakeFiles/WebServer.dir/src/locker.cpp.i: cmake_force
@@ -85,7 +98,7 @@ CMakeFiles/WebServer.dir/src/locker.cpp.s: cmake_force
 
 CMakeFiles/WebServer.dir/src/main.cpp.o: CMakeFiles/WebServer.dir/flags.make
 CMakeFiles/WebServer.dir/src/main.cpp.o: ../src/main.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/WebServer.dir/src/main.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/WebServer.dir/src/main.cpp.o"
 	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/WebServer.dir/src/main.cpp.o -c /workspaces/WebServer/src/main.cpp
 
 CMakeFiles/WebServer.dir/src/main.cpp.i: cmake_force
@@ -98,7 +111,7 @@ CMakeFiles/WebServer.dir/src/main.cpp.s: cmake_force
 
 CMakeFiles/WebServer.dir/lib/inih/ini.c.o: CMakeFiles/WebServer.dir/flags.make
 CMakeFiles/WebServer.dir/lib/inih/ini.c.o: ../lib/inih/ini.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building C object CMakeFiles/WebServer.dir/lib/inih/ini.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building C object CMakeFiles/WebServer.dir/lib/inih/ini.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/WebServer.dir/lib/inih/ini.c.o   -c /workspaces/WebServer/lib/inih/ini.c
 
 CMakeFiles/WebServer.dir/lib/inih/ini.c.i: cmake_force
@@ -111,7 +124,7 @@ CMakeFiles/WebServer.dir/lib/inih/ini.c.s: cmake_force
 
 CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.o: CMakeFiles/WebServer.dir/flags.make
 CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.o: ../lib/inih/INIReader.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.o"
 	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.o -c /workspaces/WebServer/lib/inih/INIReader.cpp
 
 CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.i: cmake_force
@@ -124,6 +137,7 @@ CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.s: cmake_force
 
 # Object files for target WebServer
 WebServer_OBJECTS = \
+"CMakeFiles/WebServer.dir/src/chatAPI.cpp.o" \
 "CMakeFiles/WebServer.dir/src/http_conn.cpp.o" \
 "CMakeFiles/WebServer.dir/src/locker.cpp.o" \
 "CMakeFiles/WebServer.dir/src/main.cpp.o" \
@@ -133,14 +147,16 @@ WebServer_OBJECTS = \
 # External object files for target WebServer
 WebServer_EXTERNAL_OBJECTS =
 
+WebServer: CMakeFiles/WebServer.dir/src/chatAPI.cpp.o
 WebServer: CMakeFiles/WebServer.dir/src/http_conn.cpp.o
 WebServer: CMakeFiles/WebServer.dir/src/locker.cpp.o
 WebServer: CMakeFiles/WebServer.dir/src/main.cpp.o
 WebServer: CMakeFiles/WebServer.dir/lib/inih/ini.c.o
 WebServer: CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.o
 WebServer: CMakeFiles/WebServer.dir/build.make
+WebServer: /usr/lib/x86_64-linux-gnu/libcurl.so
 WebServer: CMakeFiles/WebServer.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking CXX executable WebServer"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/workspaces/WebServer/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Linking CXX executable WebServer"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/WebServer.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

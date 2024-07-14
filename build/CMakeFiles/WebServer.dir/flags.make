@@ -3,15 +3,15 @@
 
 # compile C with /usr/bin/cc
 # compile CXX with /usr/bin/c++
-C_FLAGS = -g  
+C_FLAGS =  
 
 C_DEFINES = 
 
-C_INCLUDES = -I/workspaces/WebServer/include 
+C_INCLUDES = -I/workspaces/WebServer/include -I/usr/include/x86_64-linux-gnu 
 
-CXX_FLAGS = -g   -std=gnu++11
+CXX_FLAGS =   -std=gnu++11
 
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/workspaces/WebServer/include 
+CXX_INCLUDES = -I/workspaces/WebServer/include -I/usr/include/x86_64-linux-gnu 
 

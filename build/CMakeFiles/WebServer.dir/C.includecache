@@ -6,3 +6,21 @@
 
 #IncludeRegexTransform: 
 
+../include/inih/ini.h
+stdio.h
+-
+
+/workspaces/WebServer/lib/inih/ini.c
+stdio.h
+-
+ctype.h
+-
+string.h
+-
+inih/ini.h
+/workspaces/WebServer/lib/inih/inih/ini.h
+stddef.h
+-
+stdlib.h
+-
+

@@ -58,7 +58,23 @@ void HttpConnection::initConnection()
     writeIndex = 0;
     std::fill(readBuffer.begin(), readBuffer.end(), '\0');
     std::fill(writeBuffer.begin(), writeBuffer.end(), '\0');
+    responseText.clear();
     realFile.clear();
+}
+
+std::string HttpConnection::generateJsonResponse(const std::string &content)
+{
+    nlohmann::json responseJson;
+    responseJson["response"] = content;
+    return responseJson.dump();
+}
+
+bool HttpConnection::addCorsHeaders()
+{
+    addResponse("Access-Control-Allow-Origin: *\r\n");
+    addResponse("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n");
+    addResponse("Access-Control-Allow-Headers: Content-Type\r\n");
+    return true;
 }
 
 bool HttpConnection::read()
@@ -115,7 +131,7 @@ bool HttpConnection::write()
     while (true)
     {
         temp = writev(sockfd, iv, ivCount);
-
+        spdlog::debug("写入数据: {}", iv[0].iov_base);
         if (temp <= -1)
         {
             if (errno == EAGAIN)
@@ -133,7 +149,6 @@ bool HttpConnection::write()
 
         bytesToSend -= temp;
         bytesHaveSent += temp;
-
 
         if (bytesToSend <= 0)
         {
@@ -174,6 +189,10 @@ HttpConnection::HttpCode HttpConnection::processRead()
             {
                 return HttpCode::BAD_REQUEST;
             }
+            else if (ret == HttpCode::OPTIONS_RESPONSE)
+            {
+                return HttpCode::OPTIONS_RESPONSE;
+            }
             break;
         }
         case CheckState::HEADER:
@@ -205,6 +224,15 @@ HttpConnection::HttpCode HttpConnection::processRead()
         }
         }
     }
+    if ((lineStatus = parseLine()) == LineStatus::OPEN)
+    {
+        if (contentLength != 0)
+        {
+            checkedIndex -= contentLength;
+            text = getLine();
+            return parseContent(text);
+        }
+    }
 
     return HttpCode::NO_REQUEST;
 }
@@ -221,6 +249,15 @@ HttpConnection::HttpCode HttpConnection::parseRequestLine(std::string &text)
     if (methodStr == "GET")
     {
         method = Method::GET;
+    }
+    else if (methodStr == "POST")
+    {
+        method = Method::POST;
+    }
+    else if (methodStr == "OPTIONS")
+    {
+        method = Method::OPTIONS;
+        return HttpCode::OPTIONS_RESPONSE;
     }
     else
     {
@@ -302,8 +339,24 @@ HttpConnection::HttpCode HttpConnection::parseContent(std::string &text)
 {
     if (readIndex >= (contentLength + checkedIndex))
     {
+        std::string userText;
         content = text.substr(0, contentLength);
-        return HttpCode::GET_REQUEST;
+        std::string textKey = "\"text\":\"";
+        auto textStartPos = content.find(textKey);
+        if (textStartPos != std::string::npos)
+        {
+            textStartPos += textKey.size();
+            auto textEndPos = content.find("\"", textStartPos);
+            if (textEndPos != std::string::npos)
+            {
+                userText = content.substr(textStartPos, textEndPos - textStartPos);
+                spdlog::debug("用户输入: {}", userText);
+            }
+        }
+        responseText = chat_with_ai(userText);
+        spdlog::debug("AI回复: {}", responseText);
+        checkedIndex += contentLength;
+        return HttpCode::AI_RESPONSE;
     }
     return HttpCode::NO_REQUEST;
 }
@@ -394,7 +447,6 @@ bool HttpConnection::addResponse(const char *format, ...)
         return false;
     }
     writeIndex += len;
-    int i = this->writeIndex;
     va_end(argList);
     return true;
 }
@@ -404,10 +456,18 @@ bool HttpConnection::addStatusLine(int status, const std::string &title)
     return addResponse("%s %d %s\r\n", "HTTP/1.1", status, title.c_str());
 }
 
-bool HttpConnection::addHeaders(int contentLength)
+bool HttpConnection::addHeaders(int contentLength, HttpCode ret)
 {
     addContentLength(contentLength);
-    addContentType();
+    if (ret==HttpCode::AI_RESPONSE)
+    {
+        addContentTypeJSON();
+    }
+    else 
+    {
+        addContentTypeHTML();
+    }
+    
     addLinger();
     addBlankLine();
     return true;
@@ -433,19 +493,24 @@ bool HttpConnection::addContent(const std::string &content)
     return addResponse("%s", content.c_str());
 }
 
-bool HttpConnection::addContentType()
+bool HttpConnection::addContentTypeHTML()
 {
     return addResponse("Content-Type: text/html; charset=UTF-8\r\n");
 }
-
+bool HttpConnection::addContentTypeJSON()
+{
+    addResponse("Access-Control-Allow-Origin: *\r\n");
+    return addResponse("Content-Type: application/json; charset=UTF-8\r\n");
+}
 bool HttpConnection::processWrite(HttpCode ret)
 {
+    std::string responseJson;
     spdlog::debug("处理响应报文");
     switch (ret)
     {
     case HttpCode::INTERNAL_ERROR:
         addStatusLine(500, error500Title);
-        addHeaders(error500Form.size());
+        addHeaders(error500Form.size(), ret);
         if (!addContent(error500Form))
         {
             return false;
@@ -453,7 +518,7 @@ bool HttpConnection::processWrite(HttpCode ret)
         break;
     case HttpCode::BAD_REQUEST:
         addStatusLine(400, error400Title);
-        addHeaders(error400Form.size());
+        addHeaders(error400Form.size(), ret);
         if (!addContent(error400Form))
         {
             return false;
@@ -461,7 +526,7 @@ bool HttpConnection::processWrite(HttpCode ret)
         break;
     case HttpCode::NO_RESOURCE:
         addStatusLine(404, error404Title);
-        addHeaders(error404Form.size());
+        addHeaders(error404Form.size(), ret);
         if (!addContent(error404Form))
         {
             return false;
@@ -469,7 +534,7 @@ bool HttpConnection::processWrite(HttpCode ret)
         break;
     case HttpCode::FORBIDDEN_REQUEST:
         addStatusLine(403, error403Title);
-        addHeaders(error403Form.size());
+        addHeaders(error403Form.size(), ret);
         if (!addContent(error403Form))
         {
             return false;
@@ -477,13 +542,35 @@ bool HttpConnection::processWrite(HttpCode ret)
         break;
     case HttpCode::FILE_REQUEST:
         addStatusLine(200, ok200Title);
-        addHeaders(fileStat.st_size);
+        addHeaders(fileStat.st_size, ret);
         iv[0].iov_base = writeBuffer.data();
         iv[0].iov_len = writeIndex;
         iv[1].iov_base = fileAddress;
         iv[1].iov_len = fileStat.st_size;
         ivCount = 2;
         spdlog::debug("添加响应内容成功");
+        return true;
+    case HttpCode::AI_RESPONSE:
+        addStatusLine(200, ok200Title);
+        responseJson = generateJsonResponse(responseText);
+        responseText.clear();
+        addHeaders(responseJson.size(), ret);
+        addContent(responseJson);
+        iv[0].iov_base = writeBuffer.data();
+        iv[0].iov_len = writeIndex;
+        ivCount = 1;
+        spdlog::debug("回复报文{}\n", writeBuffer.data());
+        spdlog::debug("添加AI回复内容成功");
+        return true;
+    case HttpCode::OPTIONS_RESPONSE:
+        addStatusLine(200, ok200Title);
+        addCorsHeaders(); // 添加 CORS 头信息
+        addBlankLine();
+        iv[0].iov_base = writeBuffer.data();
+        iv[0].iov_len = writeIndex;
+        ivCount = 1;
+        spdlog::debug("回复报文{}\n", writeBuffer.data());
+        spdlog::debug("处理 OPTIONS 请求成功");
         return true;
     default:
         return false;

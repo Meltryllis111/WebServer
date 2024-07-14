@@ -12,9 +12,11 @@ set(CMAKE_C_COMPILER_ID "GNU")
 # The include file search paths:
 set(CMAKE_C_TARGET_INCLUDE_PATH
   "../include"
+  "/usr/include/x86_64-linux-gnu"
   )
 set(CMAKE_DEPENDS_CHECK_CXX
   "/workspaces/WebServer/lib/inih/INIReader.cpp" "/workspaces/WebServer/build/CMakeFiles/WebServer.dir/lib/inih/INIReader.cpp.o"
+  "/workspaces/WebServer/src/chatAPI.cpp" "/workspaces/WebServer/build/CMakeFiles/WebServer.dir/src/chatAPI.cpp.o"
   "/workspaces/WebServer/src/http_conn.cpp" "/workspaces/WebServer/build/CMakeFiles/WebServer.dir/src/http_conn.cpp.o"
   "/workspaces/WebServer/src/locker.cpp" "/workspaces/WebServer/build/CMakeFiles/WebServer.dir/src/locker.cpp.o"
   "/workspaces/WebServer/src/main.cpp" "/workspaces/WebServer/build/CMakeFiles/WebServer.dir/src/main.cpp.o"
@@ -24,6 +26,7 @@ set(CMAKE_CXX_COMPILER_ID "GNU")
 # The include file search paths:
 set(CMAKE_CXX_TARGET_INCLUDE_PATH
   "../include"
+  "/usr/include/x86_64-linux-gnu"
   )
 
 # Targets to which this target links.

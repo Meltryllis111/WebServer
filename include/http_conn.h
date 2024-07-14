@@ -15,6 +15,8 @@
 #include <vector>
 #include <memory>
 #include <spdlog/spdlog.h>
+#include "chatAPI.h"
+#include "json.hpp"
 constexpr int READ_BUFFER_SIZE = 4096;
 constexpr int WRITE_BUFFER_SIZE = 4096;
 constexpr int FILENAME_LEN = 200;
@@ -55,7 +57,9 @@ public:
         FORBIDDEN_REQUEST,
         FILE_REQUEST,
         INTERNAL_ERROR,
-        CLOSED_CONNECTION
+        CLOSED_CONNECTION,
+        AI_RESPONSE,
+        OPTIONS_RESPONSE
     };
     enum class LineStatus
     {
@@ -72,6 +76,7 @@ public:
     void closeConnection();
     bool read();
     bool write();
+    std::string generateJsonResponse(const std::string &content);
     int writeIndex;
 
     static int epollFd;
@@ -91,12 +96,14 @@ private:
     bool processWrite(HttpCode ret);
     bool addResponse(const char *format, ...);
     bool addContent(const std::string &content);
-    bool addContentType();
+    bool addContentTypeHTML();
+    bool addContentTypeJSON();
     bool addStatusLine(int status, const std::string &title);
-    bool addHeaders(int contentLength);
+    bool addHeaders(int contentLength,HttpCode ret);
     bool addContentLength(int contentLength);
     bool addLinger();
     bool addBlankLine();
+    bool addCorsHeaders();
 
     Method method;
     CheckState checkState;
@@ -119,6 +126,7 @@ private:
     struct stat fileStat;
     struct iovec iv[2];
     int ivCount;
+    std::string responseText;
 
     const std::string ok200Title = "OK";
     const std::string error400Title = "Bad Request";
